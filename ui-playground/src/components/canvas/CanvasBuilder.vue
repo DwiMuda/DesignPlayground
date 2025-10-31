@@ -1,727 +1,876 @@
 <template>
-    <div 
-      class="canvas-builder"
-      :class="{ 'preview-mode': previewMode, 'has-selection': selectedElement }"
-      @click="handleCanvasClick"
-      @dragover="handleDragOver"
-      @drop="handleDrop"
-    >
-      <!-- Canvas Header -->
-      <div v-if="!previewMode" class="canvas-header">
-        <div class="canvas-info">
-          <h3 class="canvas-title">Design Canvas</h3>
-          <div class="canvas-stats">
-            <span class="stat">{{ totalElements }} elements</span>
-            <span class="stat">{{ totalSections }} sections</span>
-          </div>
+  <div class="canvas-builder">
+    <!-- Canvas Header dengan Controls -->
+    <div class="canvas-header">
+      <div class="header-left">
+        <h2 class="canvas-title">Design Canvas</h2>
+        <div class="canvas-stats">
+          <span class="stat-item">
+            <span class="stat-icon">📑</span>
+            {{ sectionsCount }} Sections
+          </span>
+          <span class="stat-item">
+            <span class="stat-icon">🧩</span>
+            {{ elementsCount }} Elements
+          </span>
+          <span class="stat-icon">🔍</span>
+            {{ Math.round(canvasStore.zoomLevel * 100) }}%
+          
         </div>
-        <div class="canvas-controls">
-          <button class="control-btn" @click="zoomOut" title="Zoom Out">
-            <span class="control-icon">🔍−</span>
+      </div>
+
+      <div class="header-right">
+        <!-- Sidebar Tools -->
+        <SidebarTools 
+          :show-grid="canvasStore.showGrid"
+          :show-rulers="showRulers"
+          :show-outlines="showElementOutlines"
+          :zoom-level="canvasStore.zoomLevel"
+          @toggle-grid="toggleGrid"
+          @toggle-rulers="toggleRulers"
+          @toggle-outlines="toggleOutlines"
+          @zoom-in="zoomIn"
+          @zoom-out="zoomOut"
+          @reset-zoom="resetZoom"
+        />
+
+        <!-- Action Buttons -->
+        <div class="action-controls">
+          <button 
+            @click="addNewSection" 
+            class="action-btn primary"
+            title="Add New Section"
+          >
+            <span class="btn-icon">➕</span>
+            Add Section
           </button>
-          <span class="zoom-level">{{ Math.round(zoom * 100) }}%</span>
-          <button class="control-btn" @click="zoomIn" title="Zoom In">
-            <span class="control-icon">🔍+</span>
+          
+          <button 
+            @click="clearCanvas" 
+            class="action-btn secondary"
+            :disabled="!sectionsCount"
+            title="Clear Canvas"
+          >
+            <span class="btn-icon">🗑️</span>
+            Clear
           </button>
-          <button class="control-btn" @click="resetZoom" title="Reset Zoom">
-            <span class="control-icon">⟲</span>
-          </button>
-          <button class="control-btn" @click="centerCanvas" title="Center View">
-            <span class="control-icon">⌖</span>
+          
+          <button 
+            @click="toggleExport" 
+            class="action-btn tertiary"
+            title="Export Design"
+          >
+            <span class="btn-icon">📤</span>
+            Export
           </button>
         </div>
       </div>
-  
-      <!-- Canvas Area -->
-      <div 
-        class="canvas-area"
-        :style="canvasStyle"
-        @mousedown="startPan"
-        @mousemove="handlePan"
-        @mouseup="stopPan"
-        @mouseleave="stopPan"
-      >
-        <!-- Grid Background -->
-        <div v-if="!previewMode && showGrid" class="canvas-grid"></div>
-  
-        <!-- Elements Container -->
-        <div class="elements-container">
-          <Widget
-            v-for="element in elements"
-            :key="element.id"
-            :element="element"
-            :selected="selectedElement?.id === element.id"
-            :zoom="zoom"
-            @select="handleElementSelect(element)"
-            @update:element="handleElementUpdate(element.id, $event)"
-            @delete="handleElementDelete(element.id)"
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <!-- Property Editor Sidebar -->
+      <div v-if="selectedElement" class="property-sidebar">
+        <PropertyEditor 
+          :element="selectedElement"
+          @update:element="handleElementUpdate"
+          @delete:element="handleElementDelete"
+        />
+      </div>
+
+      <!-- Canvas Content -->
+      <div class="canvas-content" :class="{ 'with-sidebar': selectedElement }">
+        <!-- Rulers (jika aktif) -->
+        <div v-if="showRulers" class="rulers">
+          <div class="horizontal-ruler">
+            <div 
+              v-for="mark in rulerMarks" 
+              :key="'h-' + mark"
+              class="ruler-mark"
+              :class="{ major: mark % 100 === 0 }"
+            >
+              <span v-if="mark % 100 === 0" class="ruler-label">{{ mark }}px</span>
+            </div>
+          </div>
+          <div class="vertical-ruler">
+            <div 
+              v-for="mark in rulerMarks" 
+              :key="'v-' + mark"
+              class="ruler-mark"
+              :class="{ major: mark % 100 === 0 }"
+            >
+              <span v-if="mark % 100 === 0" class="ruler-label">{{ mark }}px</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="canvas-main">
+          <CanvasArea 
+            :show-rulers="showRulers"
+            :show-outlines="showElementOutlines"
+            :show-grid="canvasStore.showGrid"
+            @element-selected="handleElementSelected"
+            @element-updated="handleElementUpdated"
+            @section-added="handleSectionAdded"
           />
         </div>
-  
-        <!-- Empty State -->
-        <div v-if="!elements.length" class="empty-canvas">
-          <div class="empty-content">
-            <div class="empty-icon">🎨</div>
-            <h3 class="empty-title">Your canvas is empty</h3>
-            <p class="empty-description">
-              Drag elements from the sidebar or click to add sample content
-            </p>
-            <div class="empty-actions">
-              <button class="empty-btn primary" @click="addSampleLayout">
-                <span class="btn-icon">🚀</span>
-                Add Sample Layout
-              </button>
-              <button class="empty-btn" @click="showHelp = true">
-                <span class="btn-icon">❓</span>
-                Show Tutorial
-              </button>
-            </div>
+
+        <!-- Canvas Footer dengan Status -->
+        <div class="canvas-footer">
+          <div class="footer-left">
+            <span class="status-item" v-if="selectedElement">
+              Selected: {{ selectedElement.type }} ({{ selectedElement.id?.slice(-6) }})
+            </span>
+            <span class="status-item" v-else>
+              No element selected
+            </span>
           </div>
-        </div>
-  
-        <!-- Selection Box -->
-        <div 
-          v-if="selectedElement && !previewMode" 
-          class="selection-box"
-          :style="selectionBoxStyle"
-        >
-          <div class="selection-info">
-            <span class="selection-type">{{ getElementTypeName(selectedElement.type) }}</span>
-            <span class="selection-id">{{ selectedElement.id.slice(0, 8) }}</span>
+          
+          <div class="footer-right">
+            <span class="status-item">
+              Grid: {{ canvasStore.showGrid ? 'ON' : 'OFF' }}
+            </span>
+            <span class="status-item">
+              Snap: {{ snapToGrid ? 'ON' : 'OFF' }}
+            </span>
           </div>
         </div>
       </div>
-  
-      <!-- Canvas Guides -->
-      <div v-if="!previewMode" class="canvas-guides">
-        <div class="horizontal-guide" :style="{ top: '50%' }"></div>
-        <div class="vertical-guide" :style="{ left: '50%' }"></div>
-      </div>
-  
-      <!-- Help Overlay -->
-      <Teleport to="body">
-        <div v-if="showHelp" class="help-overlay" @click="showHelp = false">
-          <div class="help-content" @click.stop>
-            <div class="help-header">
-              <h2>Canvas Guide</h2>
-              <button class="close-btn" @click="showHelp = false">
-                <span class="close-icon">×</span>
-              </button>
-            </div>
-            <div class="help-body">
-              <div class="help-item">
-                <div class="help-step">1</div>
-                <div class="help-text">
-                  <strong>Drag & Drop</strong> elements from the sidebar to the canvas
-                </div>
-              </div>
-              <div class="help-item">
-                <div class="help-step">2</div>
-                <div class="help-text">
-                  <strong>Click</strong> on elements to select and edit properties
-                </div>
-              </div>
-              <div class="help-item">
-                <div class="help-step">3</div>
-                <div class="help-text">
-                  <strong>Double-click</strong> text elements to edit content
-                </div>
-              </div>
-              <div class="help-item">
-                <div class="help-step">4</div>
-                <div class="help-text">
-                  Use <strong>mouse wheel</strong> to zoom in/out
-                </div>
-              </div>
-              <div class="help-item">
-                <div class="help-step">5</div>
-                <div class="help-text">
-                  <strong>Drag canvas</strong> with middle mouse button to pan
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Teleport>
     </div>
-  </template>
-  
-  <script setup>
-  import { ref, computed, onMounted, onUnmounted } from 'vue'
-  import { useCanvasStore } from '../../stores/canvas'
-  import { ELEMENT_NAMES } from '../../utils/constants'
-  import Widget from '../common/Widget.vue'
-  
-  const props = defineProps({
-    previewMode: {
-      type: Boolean,
-      default: false
-    }
-  })
-  
-  const emit = defineEmits(['select-element'])
-  
-  // Store
-  const store = useCanvasStore()
-  
-  // State
-  const zoom = ref(1)
-  const pan = ref({ x: 0, y: 0 })
-  const isPanning = ref(false)
-  const lastPanPoint = ref({ x: 0, y: 0 })
-  const showGrid = ref(true)
-  const showHelp = ref(false)
-  
-  // Computed
-  const elements = computed(() => store.elements)
-  const selectedElement = computed(() => store.selectedElement)
-  const totalElements = computed(() => store.totalElements)
-  const totalSections = computed(() => store.totalSections)
-  
-  const canvasStyle = computed(() => ({
-    transform: `scale(${zoom.value}) translate(${pan.value.x}px, ${pan.value.y}px)`,
-    transformOrigin: '0 0',
-    cursor: isPanning.value ? 'grabbing' : 'default'
-  }))
-  
-  const selectionBoxStyle = computed(() => {
-    if (!selectedElement.value?.position) return {}
-    
-    return {
-      left: `${selectedElement.value.position.x - 4}px`,
-      top: `${selectedElement.value.position.y - 4}px`,
-      width: `calc(${selectedElement.value.style.width || '100px'} + 8px)`,
-      height: `calc(${selectedElement.value.style.height || 'auto'} + 8px)`
-    }
-  })
-  
-  // Methods
-  const handleCanvasClick = (event) => {
-    if (event.target === event.currentTarget) {
-      store.selectElement(null)
-      emit('select-element', null)
-    }
+
+    <!-- Quick Actions Toolbar -->
+    <div class="quick-actions">
+      <button 
+        v-for="action in quickActions"
+        :key="action.id"
+        @click="action.handler"
+        class="quick-action-btn"
+        :class="{ active: action.active }"
+        :title="action.title"
+      >
+        <span class="action-icon">{{ action.icon }}</span>
+        <span class="action-label">{{ action.label }}</span>
+      </button>
+    </div>
+
+    <!-- Export Modal -->
+    <ExportModal 
+      v-if="uiStore.showExportModal"
+      @close="uiStore.toggleExportModal"
+      @export="handleExport"
+    />
+
+    <!-- Keyboard Shortcuts Help -->
+    <div v-if="showShortcutsHelp" class="shortcuts-help">
+      <div class="shortcuts-content">
+        <h3>Keyboard Shortcuts</h3>
+        <div class="shortcuts-list">
+          <div class="shortcut-item">
+            <kbd>Ctrl +</kbd> <span>Zoom In</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl -</kbd> <span>Zoom Out</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl 0</kbd> <span>Reset Zoom</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Delete</kbd> <span>Remove Element</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl + S</kbd> <span>Save</span>
+          </div>
+          <div class="shortcut-item">
+            <kbd>Ctrl + D</kbd> <span>Duplicate</span>
+          </div>
+        </div>
+        <button @click="showShortcutsHelp = false" class="close-help-btn">
+          Got it!
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useCanvasStore } from '../stores/canvas'
+import { useUIStore } from '../stores/ui'
+
+// Import komponen sesuai struktur
+import CanvasArea from './canvas/CanvasArea.vue'
+import PropertyEditor from './properties/PropertyEditor.vue'
+import SidebarTools from './sidebar/SidebarTools.vue'
+import ExportModal from './sidebar/ExportModal.vue'
+
+// Stores
+const canvasStore = useCanvasStore()
+const uiStore = useUIStore()
+
+// Reactive state
+const showRulers = ref(false)
+const showElementOutlines = ref(true)
+const snapToGrid = ref(true)
+const showShortcutsHelp = ref(false)
+
+// Constants
+const minZoom = 0.3
+const maxZoom = 3
+const rulerMarks = Array.from({ length: 21 }, (_, i) => i * 50) // 0 to 1000px
+
+// Computed properties
+const sectionsCount = computed(() => canvasStore.sections?.length || 0)
+const elementsCount = computed(() => canvasStore.totalElements || 0)
+const selectedElement = computed(() => canvasStore.selectedElement)
+
+// Quick actions
+const quickActions = computed(() => [
+  {
+    id: 'add-section',
+    icon: '📑',
+    label: 'Add Section',
+    title: 'Add new section',
+    handler: addNewSection,
+    active: false
+  },
+  {
+    id: 'toggle-grid',
+    icon: '🎯',
+    label: 'Grid',
+    title: 'Toggle grid visibility',
+    handler: toggleGrid,
+    active: canvasStore.showGrid
+  },
+  {
+    id: 'snap-grid',
+    icon: '🧲',
+    label: 'Snap',
+    title: 'Toggle snap to grid',
+    handler: toggleSnapToGrid,
+    active: snapToGrid.value
+  },
+  {
+    id: 'center-view',
+    icon: '🎯',
+    label: 'Center',
+    title: 'Center canvas view',
+    handler: centerCanvas,
+    active: false
+  },
+  {
+    id: 'shortcuts-help',
+    icon: '⌨️',
+    label: 'Help',
+    title: 'Show keyboard shortcuts',
+    handler: () => showShortcutsHelp.value = true,
+    active: false
   }
-  
-  const handleDragOver = (event) => {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
+])
+
+// Methods
+const toggleGrid = () => {
+  canvasStore.setGridVisibility(!canvasStore.showGrid)
+}
+
+const toggleRulers = () => {
+  showRulers.value = !showRulers.value
+}
+
+const toggleOutlines = () => {
+  showElementOutlines.value = !showElementOutlines.value
+}
+
+const toggleSnapToGrid = () => {
+  snapToGrid.value = !snapToGrid.value
+  canvasStore.setSnapToGrid(snapToGrid.value)
+}
+
+const zoomIn = () => {
+  if (canvasStore.zoomLevel < maxZoom) {
+    canvasStore.setZoomLevel(canvasStore.zoomLevel + 0.1)
   }
-  
-  const handleDrop = (event) => {
-    event.preventDefault()
-    
-    const elementData = event.dataTransfer.getData('application/json')
-    if (elementData) {
-      try {
-        const element = JSON.parse(elementData)
-        const rect = event.currentTarget.getBoundingClientRect()
-        
-        const newElement = store.addElement({
-          ...element,
-          position: {
-            x: (event.clientX - rect.left - pan.value.x) / zoom.value,
-            y: (event.clientY - rect.top - pan.value.y) / zoom.value
-          }
-        })
-        
-        store.selectElement(newElement)
-        emit('select-element', newElement)
-      } catch (error) {
-        console.error('Error parsing dropped element:', error)
+}
+
+const zoomOut = () => {
+  if (canvasStore.zoomLevel > minZoom) {
+    canvasStore.setZoomLevel(canvasStore.zoomLevel - 0.1)
+  }
+}
+
+const resetZoom = () => {
+  canvasStore.setZoomLevel(1)
+}
+
+const addNewSection = () => {
+  const newSection = {
+    id: generateId(),
+    columns: [
+      { 
+        id: generateId(), 
+        widgets: [],
+        style: { flex: 1 }
       }
+    ],
+    style: {
+      padding: '40px 20px',
+      background: '#ffffff',
+      border: '1px solid #e9ecef',
+      borderRadius: '8px',
+      marginBottom: '20px'
     }
   }
-  
-  const handleElementSelect = (element) => {
-    store.selectElement(element)
-    emit('select-element', element)
+  canvasStore.addSection(newSection)
+}
+
+const clearCanvas = () => {
+  if (confirm('Are you sure you want to clear the entire canvas? This action cannot be undone.')) {
+    canvasStore.clearCanvas()
   }
-  
-  const handleElementUpdate = (elementId, updates) => {
-    store.updateElement(elementId, updates)
-  }
-  
-  const handleElementDelete = (elementId) => {
-    store.removeElement(elementId)
-    emit('select-element', null)
-  }
-  
-  // Zoom & Pan
-  const zoomIn = () => {
-    zoom.value = Math.min(zoom.value + 0.1, 3)
-  }
-  
-  const zoomOut = () => {
-    zoom.value = Math.max(zoom.value - 0.1, 0.3)
-  }
-  
-  const resetZoom = () => {
-    zoom.value = 1
-    pan.value = { x: 0, y: 0 }
-  }
-  
-  const centerCanvas = () => {
-    pan.value = { x: 0, y: 0 }
-  }
-  
-  const startPan = (event) => {
-    if (event.button === 1 || (event.button === 0 && event.altKey)) { // Middle click or Alt + Left click
-      isPanning.value = true
-      lastPanPoint.value = { x: event.clientX, y: event.clientY }
-      event.preventDefault()
-    }
-  }
-  
-  const handlePan = (event) => {
-    if (!isPanning.value) return
-    
-    const deltaX = event.clientX - lastPanPoint.value.x
-    const deltaY = event.clientY - lastPanPoint.value.y
-    
-    pan.value.x += deltaX / zoom.value
-    pan.value.y += deltaY / zoom.value
-    
-    lastPanPoint.value = { x: event.clientX, y: event.clientY }
-  }
-  
-  const stopPan = () => {
-    isPanning.value = false
-  }
-  
-  // Mouse wheel zoom
-  const handleWheel = (event) => {
-    if (event.ctrlKey) {
-      event.preventDefault()
-      const delta = -event.deltaY * 0.01
-      zoom.value = Math.max(0.3, Math.min(3, zoom.value + delta))
-    }
-  }
-  
-  const getElementTypeName = (type) => {
-    return ELEMENT_NAMES[type] || 'Element'
-  }
-  
-  const addSampleLayout = () => {
-    store.addSampleLayout()
-  }
-  
-  // Event listeners
-  onMounted(() => {
-    window.addEventListener('wheel', handleWheel, { passive: false })
+}
+
+const toggleExport = () => {
+  uiStore.toggleExportModal()
+}
+
+const centerCanvas = () => {
+  // Implementation untuk center canvas view
+  console.log('🎯 Canvas view centered')
+}
+
+const handleElementSelected = (element) => {
+  canvasStore.selectElement(element)
+}
+
+const handleElementUpdated = (element) => {
+  canvasStore.updateElement(element)
+}
+
+const handleElementUpdate = (updatedElement) => {
+  canvasStore.updateElement(updatedElement)
+}
+
+const handleElementDelete = (elementId) => {
+  canvasStore.removeElement(elementId)
+}
+
+const handleSectionAdded = (section) => {
+  canvasStore.addSection(section)
+}
+
+const handleExport = (exportOptions) => {
+  console.log('Exporting with options:', exportOptions)
+  // Implement export logic here
+  uiStore.toggleExportModal()
+  uiStore.addNotification({
+    type: 'success',
+    title: 'Export Successful',
+    message: 'Your design has been exported successfully!'
   })
+}
+
+const generateId = () => {
+  return Date.now() + Math.random().toString(36).substr(2, 9)
+}
+
+// Keyboard shortcuts
+const handleKeydown = (event) => {
+  const isCtrl = event.ctrlKey || event.metaKey
   
-  onUnmounted(() => {
-    window.removeEventListener('wheel', handleWheel)
-  })
-  </script>
-  
-  <style scoped>
-  .canvas-builder {
-    flex: 1;
-    background: #f8fafc;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
+  if (isCtrl) {
+    switch (event.key) {
+      case 's':
+        event.preventDefault()
+        handleSave()
+        break
+      case 'e':
+        event.preventDefault()
+        toggleExport()
+        break
+      case '=':
+      case '+':
+        event.preventDefault()
+        zoomIn()
+        break
+      case '-':
+        event.preventDefault()
+        zoomOut()
+        break
+      case '0':
+        event.preventDefault()
+        resetZoom()
+        break
+      case 'd':
+        event.preventDefault()
+        handleDuplicate()
+        break
+    }
   }
   
-  /* Canvas Header */
+  if (event.key === 'Delete' && selectedElement.value) {
+    event.preventDefault()
+    canvasStore.removeElement(selectedElement.value.id)
+    uiStore.addNotification({
+      type: 'info',
+      title: 'Element Removed',
+      message: 'Selected element has been removed'
+    })
+  }
+  
+  if (event.key === 'Escape') {
+    canvasStore.selectElement(null)
+  }
+}
+
+const handleSave = () => {
+  canvasStore.saveDesign()
+  uiStore.addNotification({
+    type: 'success',
+    title: 'Design Saved',
+    message: 'Your design has been saved successfully!'
+  })
+}
+
+const handleDuplicate = () => {
+  if (selectedElement.value) {
+    canvasStore.duplicateElement(selectedElement.value.id)
+  }
+}
+
+// Lifecycle
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
+</script>
+
+<style scoped>
+.canvas-builder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #f8f9fa;
+  position: relative;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Header Styles */
+.canvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.canvas-title {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.canvas-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #6c757d;
+  background: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.stat-icon {
+  font-size: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Main Content Layout */
+.main-content {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.property-sidebar {
+  width: 300px;
+  background: white;
+  border-right: 1px solid #e9ecef;
+  overflow-y: auto;
+}
+
+.canvas-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.canvas-content.with-sidebar {
+  margin-right: 300px;
+}
+
+/* Action Controls */
+.action-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.action-btn.primary {
+  background: #007bff;
+  color: white;
+}
+
+.action-btn.primary:hover {
+  background: #0056b3;
+}
+
+.action-btn.secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.action-btn.secondary:hover:not(:disabled) {
+  background: #545b62;
+}
+
+.action-btn.tertiary {
+  background: transparent;
+  color: #495057;
+  border: 1px solid #dee2e6;
+}
+
+.action-btn.tertiary:hover {
+  background: #f8f9fa;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Rulers */
+.rulers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.horizontal-ruler {
+  position: absolute;
+  top: 0;
+  left: 40px;
+  right: 0;
+  height: 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+}
+
+.vertical-ruler {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  bottom: 0;
+  width: 40px;
+  background: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+  display: flex;
+  flex-direction: column;
+}
+
+.ruler-mark {
+  position: relative;
+  border-right: 1px solid #dee2e6;
+}
+
+.horizontal-ruler .ruler-mark {
+  min-width: 50px;
+  height: 100%;
+}
+
+.vertical-ruler .ruler-mark {
+  min-height: 50px;
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.ruler-mark.major {
+  border-color: #adb5bd;
+}
+
+.ruler-label {
+  position: absolute;
+  font-size: 10px;
+  color: #6c757d;
+}
+
+.horizontal-ruler .ruler-label {
+  top: 2px;
+  left: 2px;
+}
+
+.vertical-ruler .ruler-label {
+  top: 2px;
+  left: 2px;
+  transform: rotate(-90deg);
+  transform-origin: left top;
+}
+
+/* Canvas Main */
+.canvas-main {
+  flex: 1;
+  position: relative;
+  margin: 20px 0 0 40px;
+  overflow: auto;
+}
+
+/* Footer */
+.canvas-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: white;
+  border-top: 1px solid #e9ecef;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.footer-left,
+.footer-right {
+  display: flex;
+  gap: 16px;
+}
+
+.status-item {
+  padding: 2px 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+/* Quick Actions */
+.quick-actions {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: white;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+}
+
+.quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid #e9ecef;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 60px;
+}
+
+.quick-action-btn:hover {
+  background: #f8f9fa;
+  transform: translateY(-2px);
+}
+
+.quick-action-btn.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.action-icon {
+  font-size: 16px;
+}
+
+.action-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Shortcuts Help */
+.shortcuts-help {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.shortcuts-content {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.shortcuts-content h3 {
+  margin: 0 0 16px 0;
+  color: #2c3e50;
+  font-size: 18px;
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.shortcut-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.shortcut-item kbd {
+  background: #2c3e50;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.close-help-btn {
+  width: 100%;
+  padding: 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.close-help-btn:hover {
+  background: #0056b3;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
   .canvas-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 24px;
-    background: white;
-    border-bottom: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  }
-  
-  .canvas-info {
-    display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 16px;
+    align-items: stretch;
   }
   
-  .canvas-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-    color: #1e293b;
+  .header-left,
+  .header-right {
+    justify-content: space-between;
+  }
+  
+  .property-sidebar {
+    width: 250px;
+  }
+}
+
+@media (max-width: 768px) {
+  .canvas-header {
+    padding: 12px 16px;
+  }
+  
+  .header-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
   
   .canvas-stats {
-    display: flex;
-    gap: 12px;
-  }
-  
-  .stat {
-    font-size: 12px;
-    color: #64748b;
-    background: #f1f5f9;
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-weight: 600;
-  }
-  
-  .canvas-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f8fafc;
-    padding: 8px;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-  }
-  
-  .control-btn {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: white;
-    color: #475569;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  }
-  
-  .control-btn:hover {
-    background: #667eea;
-    color: white;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
-  }
-  
-  .zoom-level {
-    font-size: 12px;
-    font-weight: 600;
-    color: #475569;
-    min-width: 50px;
-    text-align: center;
-  }
-  
-  /* Canvas Area */
-  .canvas-area {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s ease;
-    background: white;
-  }
-  
-  /* Grid Background */
-  .canvas-grid {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-image: 
-      linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
-    pointer-events: none;
-    opacity: 0.6;
-  }
-  
-  /* Elements Container */
-  .elements-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    min-height: 600px;
-  }
-  
-  /* Empty State */
-  .empty-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(248, 250, 252, 0.8);
-    backdrop-filter: blur(4px);
-  }
-  
-  .empty-content {
-    text-align: center;
-    max-width: 400px;
-    padding: 40px;
-  }
-  
-  .empty-icon {
-    font-size: 64px;
-    margin-bottom: 24px;
-    opacity: 0.7;
-  }
-  
-  .empty-title {
-    margin: 0 0 12px 0;
-    font-size: 24px;
-    font-weight: 700;
-    color: #1e293b;
-  }
-  
-  .empty-description {
-    margin: 0 0 32px 0;
-    color: #64748b;
-    line-height: 1.6;
-    font-size: 16px;
-  }
-  
-  .empty-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-  }
-  
-  .empty-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    border: 2px solid #e2e8f0;
-    background: white;
-    color: #475569;
-    border-radius: 12px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-  }
-  
-  .empty-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  
-  .empty-btn.primary {
-    background: #667eea;
-    border-color: #667eea;
-    color: white;
-  }
-  
-  .empty-btn.primary:hover {
-    background: #5a67d8;
-    border-color: #5a67d8;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-  }
-  
-  .btn-icon {
-    font-size: 16px;
-  }
-  
-  /* Selection Box */
-  .selection-box {
-    position: absolute;
-    border: 2px solid #667eea;
-    border-radius: 8px;
-    pointer-events: none;
-    z-index: 10;
-    box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.1);
-  }
-  
-  .selection-info {
-    position: absolute;
-    top: -30px;
-    left: 0;
-    background: #667eea;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-    display: flex;
     gap: 8px;
   }
   
-  .selection-type {
-    font-weight: 700;
-  }
-  
-  .selection-id {
-    opacity: 0.8;
-    font-family: 'Monaco', 'Consolas', monospace;
-  }
-  
-  /* Canvas Guides */
-  .canvas-guides {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-    z-index: 5;
-  }
-  
-  .horizontal-guide,
-  .vertical-guide {
-    position: absolute;
-    background: rgba(102, 126, 234, 0.3);
-  }
-  
-  .horizontal-guide {
-    left: 0;
-    right: 0;
-    height: 1px;
-  }
-  
-  .vertical-guide {
-    top: 0;
-    bottom: 0;
-    width: 1px;
-  }
-  
-  /* Help Overlay */
-  .help-overlay {
+  .property-sidebar {
     position: fixed;
-    top: 0;
-    left: 0;
     right: 0;
+    top: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(8px);
+    z-index: 100;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
   }
   
-  .help-content {
-    background: white;
-    border-radius: 20px;
-    width: 90%;
-    max-width: 500px;
-    max-height: 80vh;
-    overflow: auto;
-    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-    animation: modalSlideIn 0.4s ease-out;
+  .property-sidebar.open {
+    transform: translateX(0);
   }
   
-  .help-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 24px 24px 0;
-  }
-  
-  .help-header h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 800;
-    color: #1e293b;
-  }
-  
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: #64748b;
+  .quick-actions {
+    bottom: 16px;
     padding: 8px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
   }
   
-  .close-btn:hover {
-    background: #f1f5f9;
-    color: #475569;
+  .quick-action-btn {
+    min-width: 50px;
+    padding: 6px 8px;
   }
   
-  .help-body {
-    padding: 24px;
+  .action-label {
+    font-size: 10px;
   }
-  
-  .help-item {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 0;
-    border-bottom: 1px solid #f1f5f9;
-  }
-  
-  .help-item:last-child {
-    border-bottom: none;
-  }
-  
-  .help-step {
-    width: 32px;
-    height: 32px;
-    background: #667eea;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  
-  .help-text {
-    color: #475569;
-    line-height: 1.5;
-  }
-  
-  .help-text strong {
-    color: #1e293b;
-    font-weight: 700;
-  }
-  
-  /* Animations */
-  @keyframes modalSlideIn {
-    from {
-      opacity: 0;
-      transform: translateY(30px) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-  
-  /* Preview Mode */
-  .preview-mode .canvas-header,
-  .preview-mode .canvas-grid,
-  .preview-mode .canvas-guides,
-  .preview-mode .selection-box {
-    display: none;
-  }
-  
-  .preview-mode .canvas-area {
-    background: white;
-  }
-  
-  /* Responsive */
-  @media (max-width: 768px) {
-    .canvas-header {
-      flex-direction: column;
-      gap: 12px;
-      align-items: stretch;
-    }
-    
-    .canvas-info {
-      justify-content: space-between;
-    }
-    
-    .canvas-controls {
-      justify-content: center;
-    }
-    
-    .empty-actions {
-      flex-direction: column;
-    }
-  }
-  </style>
+}
+</style>

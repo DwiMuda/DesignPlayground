@@ -1,89 +1,87 @@
+// Element Types
 export const ELEMENT_TYPES = {
-    TEXT: 'text',
-    BUTTON: 'button',
-    IMAGE: 'image',
-    INPUT: 'input',
-    TEXTAREA: 'textarea',
-    CARD: 'card',
-    SECTION: 'section'
-  }
-  
-  export const DEFAULT_STYLES = {
-    [ELEMENT_TYPES.TEXT]: {
-      padding: '12px 16px',
+  TEXT: 'text',
+  BUTTON: 'button',
+  HEADING: 'heading',
+  IMAGE: 'image',
+  INPUT: 'input',
+  TEXTAREA: 'textarea',
+  CARD: 'card',
+  DIVIDER: 'divider',
+  LINK: 'link',
+  CONTAINER: 'container',
+  SECTION: 'section',
+  PARAGRAPH: 'paragraph',
+  ICON: 'icon'
+}
+
+// Default Properties
+export const DEFAULT_PROPERTIES = {
+  text: {
+    text: 'Sample text',
+    style: {
+      padding: '12px',
       color: '#333333',
       fontSize: '16px',
-      lineHeight: '1.5',
-      backgroundColor: '#f8f9fa',
-      borderRadius: '8px',
-      border: '1px solid #e9ecef'
-    },
-    [ELEMENT_TYPES.BUTTON]: {
+      backgroundColor: 'transparent'
+    }
+  },
+  button: {
+    text: 'Click me',
+    style: {
       padding: '12px 24px',
-      backgroundColor: '#3498db',
+      backgroundColor: '#007bff',
       color: '#ffffff',
       border: 'none',
-      borderRadius: '8px',
-      fontSize: '14px',
-      fontWeight: '600',
-      cursor: 'pointer'
-    },
-    [ELEMENT_TYPES.IMAGE]: {
-      width: '200px',
-      height: '150px',
-      borderRadius: '8px',
-      objectFit: 'cover'
-    },
-    [ELEMENT_TYPES.INPUT]: {
-      padding: '12px 16px',
-      border: '2px solid #e9ecef',
       borderRadius: '6px',
-      fontSize: '14px',
-      outline: 'none',
-      width: '200px'
-    },
-    [ELEMENT_TYPES.TEXTAREA]: {
-      padding: '12px 16px',
-      border: '2px solid #e9ecef',
-      borderRadius: '6px',
-      fontSize: '14px',
-      outline: 'none',
-      width: '200px',
-      height: '100px',
-      resize: 'vertical'
-    },
-    [ELEMENT_TYPES.CARD]: {
-      padding: '24px',
-      backgroundColor: '#ffffff',
-      color: '#333333',
-      borderRadius: '12px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-      minHeight: '120px'
-    },
-    [ELEMENT_TYPES.SECTION]: {
-      padding: '40px',
-      backgroundColor: '#f8f9fa',
-      borderRadius: '12px',
-      marginBottom: '20px'
+      fontSize: '14px'
+    }
+  },
+  heading: {
+    text: 'Heading',
+    style: {
+      padding: '16px 12px',
+      fontSize: '24px',
+      fontWeight: 'bold',
+      color: '#2c3e50'
     }
   }
-  
-  export const ELEMENT_ICONS = {
-    [ELEMENT_TYPES.TEXT]: '📝',
-    [ELEMENT_TYPES.BUTTON]: '🔘',
-    [ELEMENT_TYPES.IMAGE]: '🖼️',
-    [ELEMENT_TYPES.INPUT]: '📥',
-    [ELEMENT_TYPES.TEXTAREA]: '📄',
-    [ELEMENT_TYPES.CARD]: '🎴',
-    [ELEMENT_TYPES.SECTION]: '📑'
+}
+
+// Get element display name
+export const getElementName = (elementType) => {
+  const names = {
+    text: 'Text',
+    button: 'Button',
+    heading: 'Heading',
+    image: 'Image',
+    input: 'Input',
+    textarea: 'Textarea',
+    card: 'Card',
+    divider: 'Divider',
+    link: 'Link',
+    container: 'Container',
+    section: 'Section',
+    paragraph: 'Paragraph',
+    icon: 'Icon'
   }
-  
-  export const ELEMENT_NAMES = {
-    [ELEMENT_TYPES.TEXT]: 'Text',
-    [ELEMENT_TYPES.BUTTON]: 'Button',
-    [ELEMENT_TYPES.IMAGE]: 'Image',
-    [ELEMENT_TYPES.INPUT]: 'Input Field',
-    [ELEMENT_TYPES.TEXTAREA]: 'Text Area',
-    [ELEMENT_TYPES.CARD]: 'Card',
-    [ELEMENT_TYPES.SECTION]: 'Section'
+  return names[elementType] || 'Element'
+}
+
+// Default styles
+export const DEFAULT_STYLES = {
+  text: {
+    padding: '12px',
+    color: '#333333',
+    fontSize: '16px',
+    backgroundColor: 'transparent'
+  },
+  button: {
+    padding: '12px 24px',
+    backgroundColor: '#007bff',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '14px'
   }
+}
