@@ -487,8 +487,6 @@ ${elementsHTML}
     }).join('\n')
   },
 
-  // ========== CSS GENERATORS ==========
-
   generateInlineCSS(elements) {
     let css = ''
     elements?.forEach((element, index) => {
